@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Inventory Label Generator
 
 Generate printable barcode labels for inventory using part numbers, quantities, and storage bin locations.
@@ -33,4 +32,3 @@ python generate_barcode_label.py --part ADS1115 --qty 25 --bin S04
 =======
 # inventory-label-generator
 Python tool for creating printable barcode labels for inventory management.
->>>>>>> e75c2f58e6a4710b8cea8d63ca960ced0cb8a4ec
