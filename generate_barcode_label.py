@@ -2,18 +2,23 @@
 """
 Make a 3" x 1" (LANDSCAPE) label image matching the reference layout.
 
-LEFT (stacked):
-  PART text
-  PART barcode
-  QTY text
-  QTY barcode
+When --bin IS provided:
+  LEFT (stacked):
+    PART text
+    PART barcode
+    QTY text
+    QTY barcode
 
-RIGHT:
-  BIN text above BIN barcode (horizontal),
-  then rotate the BIN block 90° CCW and place it on the right.
+  RIGHT:
+    BIN text above BIN barcode (horizontal),
+    then rotate the BIN block 90° CCW and place it on the right.
 
-Usage example:
-  python make_label.py --part ADS1115 --qty 25 --bin S04
+When --bin is NOT provided:
+  Only the PART/QTY stacked block is rendered, and it is centered on the label.
+
+Usage examples:
+  python generate_barcode_label.py --part ADS1115 --qty 25 --bin S04
+  python generate_barcode_label.py --part ADS1115 --qty 25
 """
 
 import argparse
@@ -37,6 +42,7 @@ ROTATE_FOR_PRINTER_DIR = "CW"
 
 MARGIN_IN = 0.08
 
+# Used only when BIN is present
 RIGHT_COL_FRAC = 0.28
 COL_GAP_IN = 0.06
 
@@ -64,8 +70,7 @@ CROP_BARCODE_TO_INK = True
 CROP_THRESHOLD = 250
 CROP_PAD_PX = 2
 
-BIN_ROTATE_CCW = True
-
+# Reliability (python-barcode/Pillow edge-case)
 MIN_MODULE_WIDTH = 0.15
 MIN_QUIET_ZONE = 0.60
 RETRY_ATTEMPTS = 4
@@ -153,7 +158,7 @@ def rotate_img(img, direction):
     return img.rotate(-90 if direction == "CW" else 90, expand=True)
 
 
-def generate_label(part, qty, bin_code, out_path):
+def generate_label(part, qty, bin_code, out_path: Path):
     W = int(LABEL_W_IN * DPI)
     H = int(LABEL_H_IN * DPI)
 
@@ -172,26 +177,49 @@ def generate_label(part, qty, bin_code, out_path):
     font_bin = load_font(FONT_BIN_SIZE, True)
 
     usable_w = W - 2 * MARGIN
-    right_col_w = int(usable_w * RIGHT_COL_FRAC)
-    left_col_w = usable_w - right_col_w - COL_GAP
 
-    left_x0 = MARGIN
-    right_x0 = left_x0 + left_col_w + COL_GAP
+    has_bin = bool(bin_code and str(bin_code).strip())
+    if has_bin:
+        right_col_w = int(usable_w * RIGHT_COL_FRAC)
+        left_col_w = usable_w - right_col_w - COL_GAP
+        left_x0 = MARGIN
+        right_x0 = left_x0 + left_col_w + COL_GAP
+    else:
+        # No BIN -> treat the entire usable area as the "left column" and center in it
+        right_col_w = 0
+        left_col_w = usable_w
+        left_x0 = MARGIN
+        right_x0 = None
+
+    # --- PART/QTY stack ---
+    part = str(part)
+    qty = str(qty)
 
     part_text_w, part_text_h = text_size(draw, part, font_part)
     qty_text_w, qty_text_h = text_size(draw, qty, font_qty)
 
-    bc_part = make_code128(part,
+    bc_part = make_code128(
+        part,
         module_width=PART_MODULE_WIDTH,
         module_height=PART_MODULE_HEIGHT,
         quiet_zone=PART_QUIET_ZONE,
-        dpi=DPI)
-
-    bc_qty = make_code128(qty,
+        dpi=DPI,
+    )
+    bc_qty = make_code128(
+        qty,
         module_width=QTY_MODULE_WIDTH,
         module_height=QTY_MODULE_HEIGHT,
         quiet_zone=QTY_QUIET_ZONE,
-        dpi=DPI)
+        dpi=DPI,
+    )
+
+    # Fit barcodes to current "left" width if needed
+    if bc_part.width > left_col_w:
+        s = left_col_w / bc_part.width
+        bc_part = bc_part.resize((int(bc_part.width * s), int(bc_part.height * s)))
+    if bc_qty.width > left_col_w:
+        s = left_col_w / bc_qty.width
+        bc_qty = bc_qty.resize((int(bc_qty.width * s), int(bc_qty.height * s)))
 
     left_stack_h = (
         part_text_h + GAP_PT_TB + bc_part.height +
@@ -201,49 +229,78 @@ def generate_label(part, qty, bin_code, out_path):
 
     y = (H - left_stack_h) // 2
 
-    draw.text((left_x0 + (left_col_w - part_text_w) // 2, y),
-              part, font=font_part, fill=(0, 0, 0))
+    # Part text
+    draw.text(
+        (left_x0 + (left_col_w - part_text_w) // 2, y),
+        part,
+        font=font_part,
+        fill=(0, 0, 0),
+    )
     y += part_text_h + GAP_PT_TB
 
-    label.alpha_composite(bc_part,
-        (left_x0 + (left_col_w - bc_part.width) // 2, y))
+    # Part barcode
+    label.alpha_composite(
+        bc_part,
+        (left_x0 + (left_col_w - bc_part.width) // 2, y),
+    )
     y += bc_part.height + GAP_PB_QT
 
-    draw.text((left_x0 + (left_col_w - qty_text_w) // 2, y),
-              qty, font=font_qty, fill=(0, 0, 0))
+    # Qty text
+    draw.text(
+        (left_x0 + (left_col_w - qty_text_w) // 2, y),
+        qty,
+        font=font_qty,
+        fill=(0, 0, 0),
+    )
     y += qty_text_h + GAP_QT_QB
 
-    label.alpha_composite(bc_qty,
-        (left_x0 + (left_col_w - bc_qty.width) // 2, y))
+    # Qty barcode
+    label.alpha_composite(
+        bc_qty,
+        (left_x0 + (left_col_w - bc_qty.width) // 2, y),
+    )
 
-    # --- BIN block ---
-    bin_text_w, bin_text_h = text_size(draw, bin_code, font_bin)
+    # --- BIN block (optional) ---
+    if has_bin:
+        bin_code = str(bin_code).strip()
+        bin_text_w, bin_text_h = text_size(draw, bin_code, font_bin)
 
-    bc_bin = make_code128(bin_code,
-        module_width=BIN_MODULE_WIDTH,
-        module_height=BIN_MODULE_HEIGHT,
-        quiet_zone=BIN_QUIET_ZONE,
-        dpi=DPI)
+        bc_bin = make_code128(
+            bin_code,
+            module_width=BIN_MODULE_WIDTH,
+            module_height=BIN_MODULE_HEIGHT,
+            quiet_zone=BIN_QUIET_ZONE,
+            dpi=DPI,
+        )
 
-    bin_block_w = max(bin_text_w, bc_bin.width)
-    bin_block_h = bin_text_h + int(0.02 * DPI) + bc_bin.height
+        # Fit to right column width pre-rotation (conservative)
+        if bc_bin.width > right_col_w:
+            s = right_col_w / bc_bin.width
+            bc_bin = bc_bin.resize((int(bc_bin.width * s), int(bc_bin.height * s)))
 
-    bin_block = Image.new("RGBA", (bin_block_w, bin_block_h), (255, 255, 255, 0))
-    bd = ImageDraw.Draw(bin_block)
+        bin_block_w = max(bin_text_w, bc_bin.width)
+        bin_block_h = bin_text_h + int(0.02 * DPI) + bc_bin.height
 
-    bd.text(((bin_block_w - bin_text_w) // 2, 0),
-            bin_code, font=font_bin, fill=(0, 0, 0))
+        bin_block = Image.new("RGBA", (bin_block_w, bin_block_h), (255, 255, 255, 0))
+        bd = ImageDraw.Draw(bin_block)
 
-    bin_block.alpha_composite(bc_bin,
-        ((bin_block_w - bc_bin.width) // 2,
-         bin_text_h + int(0.02 * DPI)))
+        bd.text(
+            ((bin_block_w - bin_text_w) // 2, 0),
+            bin_code,
+            font=font_bin,
+            fill=(0, 0, 0),
+        )
+        bin_block.alpha_composite(
+            bc_bin,
+            ((bin_block_w - bc_bin.width) // 2, bin_text_h + int(0.02 * DPI)),
+        )
 
-    bin_block_r = bin_block.rotate(90, expand=True)
+        # Rotate 90° CCW and place
+        bin_block_r = bin_block.rotate(90, expand=True)
 
-    bin_x = right_x0 + (right_col_w - bin_block_r.width) // 2
-    bin_y = (H - bin_block_r.height) // 2
-
-    label.alpha_composite(bin_block_r, (bin_x, bin_y))
+        bin_x = right_x0 + (right_col_w - bin_block_r.width) // 2
+        bin_y = (H - bin_block_r.height) // 2
+        label.alpha_composite(bin_block_r, (bin_x, bin_y))
 
     out_img = rotate_img(label, ROTATE_FOR_PRINTER_DIR) if ROTATE_FOR_PRINTER else label
 
@@ -256,10 +313,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--part", required=True)
     ap.add_argument("--qty", required=True)
-    ap.add_argument("--bin", default="S04")
+
+    # Optional BIN: if omitted (or empty), no BIN block is drawn and content is centered.
+    ap.add_argument("--bin", default=None)
+
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
+    # Output name stays compatible; BIN omitted doesn't change filename unless you want it to.
     out = Path(args.out) if args.out else Path(f"label_{args.part}_{args.qty}.png")
     generate_label(args.part, args.qty, args.bin, out)
 
