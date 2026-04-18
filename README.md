@@ -9,16 +9,6 @@ This tool supports:
 
 ---
 
-## Demo
-
-![Web Server Output](docs/ui-screenshot.png)
-
-## Wiring
-
-![Breadboard Layout](docs/breadboard.jpg)
-
----
-
 ## Refactor Notes
 
 The project has been refactored to support two distinct workflows:
