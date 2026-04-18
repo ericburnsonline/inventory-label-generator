@@ -1,18 +1,46 @@
 # Inventory Label Generator
 
-Generate printable barcode labels for inventory using part numbers, quantities, and optional storage bin locations.
+Generate printable barcode labels for inventory using part numbers, quantities, and storage bin locations.
 
-This tool outputs a PNG image designed for 3" × 1" labels commonly used with Zebra printers.
+This tool supports:
 
-Future versions may support direct ZPL generation and printing.
+• Single label image generation (JPG)  
+• Batch ZPL file generation for Zebra printers  
+
+---
+
+## Demo
+
+![Web Server Output](docs/ui-screenshot.png)
+
+## Wiring
+
+![Breadboard Layout](docs/breadboard.jpg)
+
+---
+
+## Refactor Notes
+
+The project has been refactored to support two distinct workflows:
+
+Image Labels (JPG)
+
+• Includes Part, Quantity, and Bin  
+• Used for one-off labels and visual inspection  
+• Automatically generates filenames based on inputs (unless overridden)  
+
+ZPL Batch Labels
+
+• Includes Part and Quantity only  
+• Optimized for fast batch printing  
+• Outputs .zpl files for direct printer use  
+• Bin is intentionally excluded  
 
 ---
 
 ## Features
 
-Creates a label with the following layout.
-
-### When a BIN is provided
+Creates labels with the following layout:
 
 LEFT (stacked)
 
@@ -28,100 +56,92 @@ RIGHT (rotated)
 
 ---
 
-### When no BIN is provided
+## Example Usage
 
-The part number and quantity information is centered on the label:
+Create a single image label:
 
-• Part number text  
-• Part number barcode  
-• Quantity text  
-• Quantity barcode  
+    python generate_barcode_label.py --part SS-810-6-1 --qty 1 --bin H03
+
+Auto-generated filename:
+
+• SS-810-6-1_QTY1_BINH03.jpg  
+
+Optional explicit filename:
+
+    python generate_barcode_label.py --part SS-810-6-1 --qty 1 --bin H03 --out label.jpg
 
 ---
 
-## Example Usage
+Generate batch ZPL labels:
 
-### With BIN location
+    python zpl_renderer.py --prefix SF --start 1 --count 20 --qty 1 --output labels.zpl
 
-    python generate_barcode_label.py --part ADS1115 --qty 25 --bin S04
+Generates:
 
-### Without BIN location (centered layout)
-
-    python generate_barcode_label.py --part ADS1115 --qty 25
-
-The script creates an image file named:
-
-    label_<PART>_<QTY>.png
-
-Example:
-
-    label_ADS1115_25.png
-
-Open the image and print it using your preferred image viewer or printer software.
+• SF0001  
+• SF0002  
+• ...  
+• SF0020  
 
 ---
 
 ## Requirements
 
-Python 3.8 or newer is recommended.
-
-Install dependencies using:
+Install dependencies:
 
     pip install -r requirements.txt
 
-### requirements.txt
+Typical requirements:
 
-    Pillow>=10.0
-    python-barcode>=0.15
+• pillow  
+• python-barcode  
 
-Libraries used:
+Optional Windows printing support:
 
-- Pillow — image creation and text rendering  
-- python-barcode — Code128 barcode generation  
+    pip install -r requirements-windows-print.txt
 
----
-
-## Label Specifications
-
-Designed for:
-
-- 3" × 1" labels (landscape orientation)
-- 203 DPI thermal printers (common Zebra default)
-
-Layout, spacing, and barcode sizing are configurable within the script.
+• pywin32  
 
 ---
 
-## Roadmap / Planned Features
+## Notes
 
-Potential future enhancements include:
-
-- Direct ZPL output
-- Printing directly to Zebra printers
-- Batch generation from CSV
-- Configurable layouts
-- Additional barcode formats
-- Automation-friendly command options
+• Labels are designed for 3" × 1" format  
+• Image labels include Bin information  
+• ZPL labels currently include Part and Quantity only  
+• ZPL output is optimized for scan reliability and batch printing  
 
 ---
 
-## Development Notes
+## Project Structure
 
-This project was created using an AI-assisted workflow ("vibe coding") combined with manual testing and iteration on real printed labels.
-
-All layout decisions were validated through actual printed output.
+    generate_barcode_label.py           # Single label image generation (JPG)
+    zpl_renderer.py                     # Batch ZPL label generation
+    batch_print_zpl_labels.py           # Batch print helper
+    requirements.txt                    # Core dependencies
+    requirements-windows-print.txt      # Optional Windows printing dependencies
 
 ---
 
 ## Disclaimer
 
-This software is provided "as is", without warranty of any kind.
+This project is provided as-is with no guarantees of fitness for any specific purpose.
 
-Use at your own risk.  
-The author assumes no responsibility for printing errors, hardware issues, mislabeling, or any damages resulting from use of this tool.
+Barcode scanning reliability may vary depending on printer calibration, label quality, and scanner hardware.
+
+Always test labels in your specific environment before relying on them in production workflows.
 
 ---
 
 ## License
 
-Released under the MIT License.
+MIT License
+
+Copyright (c) 2026
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files to deal in the Software
+without restriction, including without limitation the rights to use, copy,
+modify, merge, publish, distribute, sublicense, and/or sell copies.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.

@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+env/
+.DS_Store
+*.swp
+*.un~
+
+zpl_out/*
+!zpl_out/.gitkeep
+*.zpl
+
+dev/
