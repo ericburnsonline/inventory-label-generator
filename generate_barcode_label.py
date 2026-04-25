@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+from png_renderer import save_label_image
+
 import argparse
-from PIL import Image, ImageDraw, ImageFont
-import barcode
-from barcode.writer import ImageWriter
 
 
 def generate_barcode_image(data: str, filename: str) -> Image.Image:
@@ -70,7 +70,8 @@ def main():
             filename += f"_BIN{bin_code}"
         output_file = f"{filename}.jpg"
 
-    generate_label(part, qty, bin_code, output_file)
+    save_label_image(part, qty, bin_code, Path(output_file))
+    print(f"Saved label to: {output_file}")
 
 
 if __name__ == "__main__":
