@@ -68,7 +68,7 @@ def main():
         filename = f"{part}_QTY{qty}"
         if bin_code:
             filename += f"_BIN{bin_code}"
-        output_file = f"{filename}.jpg"
+        output_file = f"{filename}.png"
 
     save_label_image(part, qty, bin_code, Path(output_file))
     print(f"Saved label to: {output_file}")
