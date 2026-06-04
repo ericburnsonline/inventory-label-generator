@@ -77,3 +77,10 @@ def generate_label_zpl(part: str, qty: str, bin_code: str | None = None) -> str:
     zpl.append("^XZ")
 
     return "\n".join(zpl)
+
+if __name__ == "__main__":
+    print("zpl_renderer.py is a helper module, not the command-line tool.")
+    print()
+    print("Use this instead:")
+    print('  python batch_print_zpl_labels.py --list-printers')
+    print('  python batch_print_zpl_labels.py --prefix SF --start 1 --count 20 --qty 1 --printer "ZDesigner GX430t"')
