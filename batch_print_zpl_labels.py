@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import sys
 from pathlib import Path
 
 from label_core import build_label_specs, chunk_items
@@ -12,28 +13,68 @@ from printer_utils import list_windows_printers, send_zpl_to_windows_printer
 DEFAULT_PRINTER = "ZDesigner GX430t"
 
 
-def prompt_yes_no(prompt: str) -> bool:
+def prompt_yes_no(prompt: str, default: bool | None = None) -> bool:
+    if default is True:
+        suffix = "[Y/n]"
+    elif default is False:
+        suffix = "[y/N]"
+    else:
+        suffix = "[y/n]"
+
     while True:
-        answer = input(f"{prompt} [y/n]: ").strip().lower()
-        if answer == "y":
+        answer = input(f"{prompt} {suffix}: ").strip().lower()
+
+        if answer == "" and default is not None:
+            return default
+
+        if answer in {"y", "yes"}:
             return True
-        if answer == "n":
+
+        if answer in {"n", "no"}:
             return False
+
         print("Please enter y or n.")
 
 
 def prompt_batch_action() -> str:
     while True:
-        answer = input("Print next batch? [y/n/c]: ").strip().lower()
+        answer = input("Print next batch? [Y/n/c]: ").strip().lower()
+
+        if answer == "":
+            return "y"
+
         if answer in {"y", "n", "c"}:
             return answer
+
         print("Please enter y, n, or c.")
 
 
-def main():
-    ap = argparse.ArgumentParser()
+def print_examples() -> None:
+    print()
+    print("Examples:")
+    print()
+    print("Print 25 labels starting at SW0001:")
+    print("  python batch_print_zpl_labels.py --prefix SW --start 1 --count 25")
+    print()
+    print("Print 25 labels in batches of 10:")
+    print("  python batch_print_zpl_labels.py --prefix SW --start 1 --count 25 --batch-size 10")
+    print()
+    print("Preview the first label before printing:")
+    print("  python batch_print_zpl_labels.py --prefix SW --start 1 --count 25 --preview-first")
+    print()
+    print("Save generated ZPL files without printing:")
+    print("  python batch_print_zpl_labels.py --prefix SW --start 1 --count 25 --zpl-out-dir output_zpl --dry-run")
+    print()
+    print("List available Windows printers:")
+    print("  python batch_print_zpl_labels.py --list-printers")
+    print()
 
-    # Make these optional here (we enforce manually later)
+
+def build_parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(
+        description="Batch print Zebra ZPL inventory labels."
+    )
+
     ap.add_argument("--prefix")
     ap.add_argument("--start", type=int)
     ap.add_argument("--count", type=int)
@@ -53,11 +94,19 @@ def main():
     ap.add_argument("--list-printers", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
 
+    return ap
+
+
+def main():
+    ap = build_parser()
+
+    if len(sys.argv) == 1:
+        ap.print_help()
+        print_examples()
+        return
+
     args = ap.parse_args()
 
-    # ------------------------
-    # LIST PRINTERS MODE
-    # ------------------------
     if args.list_printers:
         printers = list_windows_printers()
         print("Available printers:")
@@ -65,15 +114,11 @@ def main():
             print(f"  {p}")
         return
 
-    # ------------------------
-    # VALIDATION
-    # ------------------------
     if not args.prefix or args.start is None or args.count is None:
+        ap.print_help()
+        print_examples()
         ap.error("--prefix, --start, and --count are required unless using --list-printers")
 
-    # ------------------------
-    # BUILD LABELS
-    # ------------------------
     specs = build_label_specs(
         prefix=args.prefix,
         start=args.start,
@@ -92,27 +137,21 @@ def main():
     print(f"Printer: {args.printer}")
     print()
 
-    # ------------------------
-    # PREVIEW
-    # ------------------------
     if args.preview_first:
         preview_path = Path(args.preview_out)
         save_label_image(
             specs[0].part,
             specs[0].qty,
             specs[0].bin_code,
-            preview_path
+            preview_path,
         )
         print(f"Preview saved: {preview_path}")
         print()
 
-        if not prompt_yes_no(f"Proceed after preview of {specs[0].part}?"):
+        if not prompt_yes_no(f"Proceed after preview of {specs[0].part}?", default=True):
             print("Cancelled.")
             return
 
-    # ------------------------
-    # BATCHING
-    # ------------------------
     batches = chunk_items(specs, args.batch_size)
 
     zpl_dir = Path(args.zpl_out_dir) if args.zpl_out_dir else None
@@ -126,16 +165,22 @@ def main():
 
         if not continue_all:
             if batch_index == 1 and not args.preview_first:
-                if not prompt_yes_no("Print first batch now?"):
+                if not prompt_yes_no("Print first batch now?", default=True):
                     print("Cancelled.")
                     return
+
             elif batch_index > 1:
                 action = prompt_batch_action()
+
                 if action == "n":
                     print("Stopped.")
                     return
+
                 if action == "c":
-                    if prompt_yes_no("Print all remaining labels without further prompts?"):
+                    if prompt_yes_no(
+                        "Print all remaining labels without further prompts?",
+                        default=True,
+                    ):
                         continue_all = True
                     else:
                         continue
