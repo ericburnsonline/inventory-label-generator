@@ -95,6 +95,25 @@ Optional — required for direct Windows printer output:
 - pywin32 (Windows only)
 
 ---
+## Running Tests
+
+The project includes pytest tests for part-number generation, label specifications, and ZPL output structure.
+
+```bash
+pip install pytest
+python -m pytest test_labels.py -v
+```
+
+The tests verify:
+
+- Sequential part-number generation
+- Label quantities and optional bin assignments
+- Inclusion of the part number in generated ZPL
+- Valid ZPL start (`^XA`) and end (`^XZ`) markers
+
+These tests do not require a connected Zebra printer. They do not yet cover physical printing or barcode scan reliability.
+
+---
 
 ## Label Format
 
